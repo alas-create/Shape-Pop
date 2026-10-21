@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Shape Pop</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    color-scheme: dark;
+    --cobalt-top: #3a4ee8;
+    --cobalt-bottom: #2030b0;
+    --cream: #fff4de;
+    --ink: #15122e;
+    --sun: #ffc93c;
+    --tomato: #ff5b4c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--cobalt-bottom);
+    color: var(--cream);
+    font-family: "Fredoka", system-ui, -apple-system, "Segoe UI", sans-serif;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .hidden { display: none !important; }
+
+  #hud {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: start;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 0;
+    pointer-events: none;
+  }
+  #lives {
+    justify-self: start;
+    font-size: 24px;
+    color: var(--tomato);
+    letter-spacing: 3px;
+    text-shadow: 0 3px 0 var(--ink);
+  }
+  #score {
+    justify-self: center;
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+    text-shadow: 0 4px 0 var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  #mult {
+    justify-self: end;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--sun);
+    text-shadow: 0 3px 0 var(--ink);
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 18px calc(16px + env(safe-area-inset-bottom, 0px));
+    background: rgba(21, 18, 46, 0.35);
+  }
+  .panel {
+    background: var(--cream);
+    color: var(--ink);
+    width: 100%;
+    max-width: 360px;
+    padding: 26px 24px 24px;
+    border-radius: 26px;
+    border: 4px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    text-align: center;
+  }
+  h1 {
+    margin: 0;
+    font-size: 54px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -1px;
+    color: var(--ink);
+  }
+  .title-bob {
+    display: inline-block;
+    animation: bob 2.4s ease-in-out infinite;
+  }
+  @keyframes bob {
+    50% { transform: translateY(-6px) rotate(-2deg); }
+  }
+  p {
+    margin: 12px 0;
+    font-size: 17px;
+    line-height: 1.45;
+    font-weight: 500;
+  }
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 16px 0 14px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .legend div {
+    padding: 8px 4px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 3px solid var(--ink);
+  }
+  .legend .bomb { background: var(--ink); color: var(--tomato); }
+  .big-score {
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 1;
+    margin: 14px 0 6px;
+  }
+  .best {
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .flag {
+    display: inline-block;
+    background: var(--tomato);
+    color: var(--cream);
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+    padding: 4px 12px;
+    font-weight: 700;
+    font-size: 16px;
+    margin-top: 4px;
+  }
+  .small {
+    font-size: 14px;
+    opacity: 0.7;
+    margin-bottom: 0;
+  }
+  button {
+    font: inherit;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    background: var(--sun);
+    border: 4px solid var(--ink);
+    border-radius: 18px;
+    padding: 12px 44px;
+    cursor: pointer;
+    box-shadow: 0 6px 0 var(--ink);
+    margin-top: 10px;
+  }
+  button:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 var(--ink);
+  }
+  button:focus-visible {
+    outline: 4px solid #ffffff;
+    outline-offset: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .title-bob { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game" aria-label="Shape Pop play area"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="lives">♥♥♥</div>
+  <div id="score">0</div>
+  <div id="mult">×1</div>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="panel">
+    <h1><span class="title-bob">Shape Pop</span></h1>
+    <p>Tap shapes before they fall off the bottom. Quick taps in a row build a combo and multiply your points.</p>
+    <div class="legend">
+      <div>Circle +1</div>
+      <div>Square +2</div>
+      <div>Triangle +3</div>
+      <div>Diamond +4</div>
+      <div>Star +5</div>
+      <div class="bomb">Bomb −1 ♥</div>
+    </div>
+    <p class="small">Don't tap the bombs. Letting shapes fall costs a life too.</p>
+    <button id="startBtn">Play</button>
+    <p class="best">Best: <span id="menuBest">0</span></p>
+    <p class="small">Desktop: press Space or Enter to start</p>
+  </div>
+</div>
+
+<div id="over" class="overlay hidden">
+  <div class="panel">
+    <h1>Game over</h1>
+    <div class="big-score" id="finalScore">0</div>
+    <p id="newBest" class="hidden"><span class="flag">New best!</span></p>
+    <p class="best">Best: <span id="overBest">0</span></p>
+    <button id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const hud = document.getElementById('hud');
+  const livesEl = document.getElementById('lives');
+  const scoreEl = document.getElementById('score');
+  const multEl = document.getElementById('mult');
+  const menuEl = document.getElementById('menu');
+  const overEl = document.getElementById('over');
+  const menuBestEl = document.getElementById('menuBest');
+  const overBestEl = document.getElementById('overBest');
+  const finalScoreEl = document.getElementById('finalScore');
+  const newBestEl = document.getElementById('newBest');
+
+  const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const MAX_LIVES = 3;
+  const INK = '#15122e';
+  const POINTS = { circle: 1, square: 2, triangle: 3, diamond: 4, star: 5 };
+  const TYPE_WEIGHTS = [['circle', 30], ['square', 25], ['triangle', 20], ['diamond', 15], ['star', 7]];
+  const PALETTE = ['#ff5b4c', '#ffc93c', '#37d89b', '#ff8acb', '#74d4ff', '#ff9a3c'];
+
+  let W = 0, H = 0, DPR = 1;
+  let state = 'menu';
+  let shapes = [], particles = [], popups = [];
+  let score = 0, lives = MAX_LIVES, combo = 0, lastHitTime = -99;
+  let elapsed = 0, spawnTimer = 0.6, lastLevel = 1, shake = 0;
+  let bestScore = 0;
+
+  try {
+    bestScore = parseInt(localStorage.getItem('shapePopBest') || '0', 10) || 0;
+  } catch (e) {}
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function currentLevel() {
+    return 1 + Math.floor(elapsed / 20);
+  }
+
+  function pickType() {
+    const total = TYPE_WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
+    let r = Math.random() * total;
+    for (const [type, w] of TYPE_WEIGHTS) {
+      r -= w;
+      if (r < 0) return type;
+    }
+    return 'circle';
+  }
+
+  function spawn(level) {
+    const bomb = Math.random() < Math.min(0.1 + level * 0.015, 0.25);
+    const type = bomb ? 'bomb' : pickType();
+    const r = 20 + Math.random() * 14;
+    const scale = H / 700;
+    let speed = (60 + level * 12 + Math.random() * 50) * scale;
+    if (type === 'star') speed *= 1.35;
+    shapes.push({
+      x: r + Math.random() * Math.max(1, W - 2 * r),
+      y: -r,
+      r,
+      type,
+      bomb,
+      color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+      vx: (Math.random() - 0.5) * 40 * scale,
+      vy: speed,
+      rot: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 2,
+      popped: false,
+      dead: false
+    });
+  }
+
+  function explode(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 120 + Math.random() * 240;
+      const life = 0.6 + Math.random() * 0.4;
+      particles.push({
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 100,
+        life, max: life,
+        color,
+        size: 3 + Math.random() * 4
+      });
+    }
+  }
+
+  function popup(x, y, text, color, size) {
+    popups.push({ x, y, text, color, size: size || 24, life: 0.9, max: 0.9 });
+  }
+
+  function multiplier() {
+    return Math.min(5, 1 + Math.floor(combo / 5));
+  }
+
+  function updateHud() {
+    livesEl.textContent = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, MAX_LIVES - lives));
+    scoreEl.textContent = score;
+    multEl.textContent = '×' + multiplier();
+  }
+
+  function loseLife(x, y) {
+    if (state !== 'playing') return;
+    lives--;
+    combo = 0;
+    if (!REDUCE_MOTION) shake = 0.35;
+    popup(x, Math.min(H - 40, y), '−1 ♥', '#ff5b4c', 26);
+    updateHud();
+    if (lives <= 0) endGame();
+  }
+
+  function hit(s) {
+    s.popped = true;
+    if (s.bomb) {
+      explode(s.x, s.y, INK, 26);
+      loseLife(s.x, s.y);
+      return;
+    }
+    combo = (elapsed - lastHitTime < 1.6) ? combo + 1 : 1;
+    lastHitTime = elapsed;
+    const pts = POINTS[s.type] * multiplier();
+    score += pts;
+    explode(s.x, s.y, s.color, 14);
+    popup(s.x, s.y, '+' + pts, s.color);
+    updateHud();
+  }
+
+  function smash(px, py) {
+    if (state !== 'playing') return;
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const s = shapes[i];
+      if (s.popped || s.dead) continue;
+      if (Math.hypot(px - s.x, py - s.y) <= s.r + 14) {
+        hit(s);
+        return;
+      }
+    }
+  }
+
+  function updateFx(dt) {
+    for (const p of particles) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 500 * dt;
+      p.life -= dt;
+    }
+    particles = particles.filter(p => p.life > 0);
+
+    for (const p of popups) {
+      p.y -= 45 * dt;
+      p.life -= dt;
+    }
+    popups = popups.filter(p => p.life > 0);
+
+    shake = Math.max(0, shake - dt * 2);
+  }
+
+  function update(dt) {
+    elapsed += dt;
+    const level = currentLevel();
+    if (state === 'playing' && level > lastLevel) {
+      lastLevel = level;
+      popup(W / 2, H * 0.35, 'Level ' + level + '!', '#ffc93c', 36);
+    }
+
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawn(level);
+      spawnTimer = Math.max(0.35, 1.2 - level * 0.07) * (0.7 + Math.random() * 0.6);
+    }
+
+    for (const s of shapes) {
+      s.y += s.vy * dt;
+      s.x += s.vx * dt;
+      s.rot += s.spin * dt;
+      if (s.x < s.r || s.x > W - s.r) {
+        s.vx = -s.vx;
+        s.x = Math.max(s.r, Math.min(W - s.r, s.x));
+      }
+      if (s.y - s.r > H && !s.dead) {
+        s.dead = true;
+        if (!s.bomb) loseLife(s.x, H - 40);
+      }
+    }
+    shapes = shapes.filter(s => !s.dead && !s.popped);
+
+    updateFx(dt);
+  }
+
+  function drawShape(s) {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.rot);
+    const r = s.r;
+
+    ctx.beginPath();
+    switch (s.type) {
+      case 'circle':
+      case 'bomb':
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        break;
+      case 'square':
+        ctx.rect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7);
+        break;
+      case 'triangle':
+        ctx.moveTo(0, -r);
+        ctx.lineTo(r * 0.9, r * 0.7);
+        ctx.lineTo(-r * 0.9, r * 0.7);
+        ctx.closePath();
+        break;
+      case 'diamond':
+        ctx.moveTo(0, -r * 1.1);
+        ctx.lineTo(r * 0.9, 0);
+        ctx.lineTo(0, r * 1.1);
+        ctx.lineTo(-r * 0.9, 0);
+        ctx.closePath();
+        break;
+      case 'star':
+        for (let i = 0; i < 10; i++) {
+          const rad = i % 2 === 0 ? r : r * 0.45;
+          const a = -Math.PI / 2 + i * Math.PI / 5;
+          ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
+        }
+        ctx.closePath();
+        break;
+    }
+
+    ctx.fillStyle = s.bomb ? INK : s.color;
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+
+    if (s.bomb) {
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.45, -r * 0.45);
+      ctx.lineTo(r * 0.45, r * 0.45);
+      ctx.moveTo(r * 0.45, -r * 0.45);
+      ctx.lineTo(-r * 0.45, r * 0.45);
+      ctx.strokeStyle = '#ff5b4c';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.arc(-r * 0.3, -r * 0.1, r * 0.1, 0, Math.PI * 2);
+      ctx.arc(r * 0.3, -r * 0.1, r * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function draw() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#3a4ee8');
+    g.addColorStop(1, '#2030b0');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    if (shake > 0) {
+      ctx.translate((Math.random() - 0.5) * shake * 24, (Math.random() - 0.5) * shake * 24);
+    }
+
+    // Dot grid, like a sticker book page
+    ctx.fillStyle = 'rgba(255, 244, 222, 0.12)';
+    const step = 28;
+    for (let y = step / 2; y < H; y += step) {
+      for (let x = step / 2; x < W; x += step) {
+        ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+      }
+    }
+
+    for (const s of shapes) drawShape(s);
+
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const p of popups) {
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      ctx.font = '700 ' + p.size + 'px Fredoka, system-ui, sans-serif';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = INK;
+      ctx.strokeText(p.text, p.x, p.y);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, p.x, p.y);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+  }
+
+  function startGame() {
+    shapes = [];
+    particles = [];
+    popups = [];
+    score = 0;
+    lives = MAX_LIVES;
+    combo = 0;
+    lastHitTime = -99;
+    elapsed = 0;
+    spawnTimer = 0.6;
+    lastLevel = 1;
+    shake = 0;
+    state = 'playing';
+    menuEl.classList.add('hidden');
+    overEl.classList.add('hidden');
+    hud.classList.remove('hidden');
+    updateHud();
+  }
+
+  function endGame() {
+    state = 'over';
+    const isNewBest = score > 0 && score > bestScore;
+    if (score > bestScore) {
+      bestScore = score;
+      try {
+        localStorage.setItem('shapePopBest', String(bestScore));
+      } catch (e) {}
+    }
+    finalScoreEl.textContent = score;
+    overBestEl.textContent = bestScore;
+    menuBestEl.textContent = bestScore;
+    newBestEl.classList.toggle('hidden', !isNewBest);
+    hud.classList.add('hidden');
+    overEl.classList.remove('hidden');
+  }
+
+  menuBestEl.textContent = bestScore;
+  overBestEl.textContent = bestScore;
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('againBtn').addEventListener('click', startGame);
+
+  canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    smash(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if ((e.code === 'Space' || e.code === 'Enter') && state !== 'playing') {
+      e.preventDefault();
+      startGame();
+    }
+  });
+
+  let lastT = performance.now();
+  function frame(t) {
+    const dt = Math.min(0.05, (t - lastT) / 1000);
+    lastT = t;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>
